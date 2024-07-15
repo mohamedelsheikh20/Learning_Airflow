@@ -13,10 +13,22 @@ from airflow.hooks.base import BaseHook
 # Return sensor value
 from airflow.sensors.base import PokeReturnValue
 
+# import operator
+from airflow.operators.python import PythonOperator
+
 # Other imports
 import requests
 from datetime import datetime
 
+
+# get the functions we need to use from other files
+from include.stock_market.tasks import _get_stock_prices
+
+
+# ---------------------------------------------------------------------------------------------- #
+
+# certain search we need to find
+SYMBOL='AAPL'
 
 # ---------------------------------------------------------------------------------------------- #
 # Define the DAG using the @dag decorator
@@ -27,6 +39,7 @@ from datetime import datetime
     tags=['stock_market']  # Tags for categorizing the DAG also to search using it
 )
 
+# ---------------------------------------------------------------------------------------------- #
 # dag function
 def stock_market_dag():
 
@@ -45,8 +58,23 @@ def stock_market_dag():
         # Return the sensor result and the API URL (via XCom)
         return PokeReturnValue(is_done=condition, xcom_value=url)
     
-    # Call the sensor task to check API availability
-    is_api_available()
+
+    # use operator here to mix it with the operator of the docker
+    get_stock_prices = PythonOperator(
+        task_id='get_stock_prices',
+        python_callable=_get_stock_prices,  # create seperated file to add all functions on it (better)
+
+        # args (dict -> keys is the args names, values is the args values)
+        # `url` and `symbol` are the arguments passed to the _get_stock_prices function.
+
+        # '{{ ti.xcom_pull(task_ids="is_api_available") }}' using the task with id is_api_available while running
+        # uses Jinja templating to dynamically pull data from task with task_id `is_api_available` using Airflow's XCom (cross-communication).
+        op_kwargs={'url': '{{ ti.xcom_pull(task_ids="is_api_available") }}', 'symbol': SYMBOL}
+    )
+
+    # Call the sensor task to check API availability in (only done with decrator @)
+    # >> what to be run after the next the previous one 
+    is_api_available() >> get_stock_prices
 
 
 # ---------------------------------------------------------------------------------------------- #
