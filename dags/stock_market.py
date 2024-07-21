@@ -16,6 +16,9 @@ from airflow.sensors.base import PokeReturnValue
 # import operator
 from airflow.operators.python import PythonOperator
 
+# import docker operator to manage seperated containers (airflow container and spark container)
+from airflow.providers.docker.operators.docker import DockerOperator
+
 # Other imports
 import requests
 from datetime import datetime
@@ -83,10 +86,29 @@ def stock_market_dag():
         op_kwargs={'prices': '{{ ti.xcom_pull(task_ids="get_stock_prices") }}'},
     )
 
+    # ****************************************************************************************** #
+    # Define a task to (convert JSON into CSV) using spark other container
+    format_prices = DockerOperator(
+        task_id='format_prices',  # Unique identifier for this task within the DAG
+        max_active_tis_per_dag=1,  # Limit to one active instance of this task per DAG run
+        image='airflow/spark-app',  # Docker image to use for this task, which connects to the Spark container
+        container_name='trigger_job',  # Name of the container that will be created for this task
+        environment={  # Environment variables to pass to the container
+            'SPARK_APPLICATION_ARGS': '{{ ti.xcom_pull(task_ids="store_prices")}}'  # Pass the output from the 'store_prices' task to the container
+        },
+        api_version='auto',  # Automatically detect the Docker API version
+        auto_remove=True,  # Remove the container after the task is finished
+        docker_url='tcp://docker-proxy:2375',  # Docker daemon socket to use (specified in the yaml file)
+        network_mode='container:spark-master',  # Network mode to use; shares the network with 'spark-master' container
+        tty=True,  # Allocate a pseudo-TTY for the container (useful for debugging)
+        xcom_all=False,  # Only push the last line of the log to XCom (default behavior)
+        mount_tmp_dir=False  # Do not mount a temporary directory in the container
+    )
+
 
     # Call the sensor task to check API availability in (only done with decrator @)
     # >> what to be run after the next the previous one 
-    is_api_available() >> get_stock_prices >> store_prices
+    is_api_available() >> get_stock_prices >> store_prices >> format_prices
 
 
 # ---------------------------------------------------------------------------------------------- #
