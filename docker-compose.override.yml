@@ -22,7 +22,6 @@ services:
       - ./include/data/minio:/data
     ports:
       - 9001:9001
-      - 9002:9002
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123

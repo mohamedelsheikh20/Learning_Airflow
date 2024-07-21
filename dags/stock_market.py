@@ -22,7 +22,7 @@ from datetime import datetime
 
 
 # get the functions we need to use from other files
-from include.stock_market.tasks import _get_stock_prices
+from include.stock_market.tasks import _get_stock_prices, _store_prices
 
 
 # ---------------------------------------------------------------------------------------------- #
@@ -43,6 +43,7 @@ SYMBOL='AAPL'
 # dag function
 def stock_market_dag():
 
+    # ****************************************************************************************** #
     # Define a task to check if the API is available
     # The task is a sensor that checks the API every 30 seconds and times out after 3600 seconds
     @task.sensor(poke_interval=30, timeout=3600, mode='poke')
@@ -59,6 +60,8 @@ def stock_market_dag():
         return PokeReturnValue(is_done=condition, xcom_value=url)
     
 
+    # ****************************************************************************************** #
+    # Define a task to get the data from API
     # use operator here to mix it with the operator of the docker
     get_stock_prices = PythonOperator(
         task_id='get_stock_prices',
@@ -72,9 +75,18 @@ def stock_market_dag():
         op_kwargs={'url': '{{ ti.xcom_pull(task_ids="is_api_available") }}', 'symbol': SYMBOL}
     )
 
+    # ****************************************************************************************** #
+    # Define a task to get the store returned data into store (in our case it is Minio)
+    store_prices = PythonOperator(
+        task_id='store_prices',
+        python_callable=_store_prices,
+        op_kwargs={'prices': '{{ ti.xcom_pull(task_ids="get_stock_prices") }}'},
+    )
+
+
     # Call the sensor task to check API availability in (only done with decrator @)
     # >> what to be run after the next the previous one 
-    is_api_available() >> get_stock_prices
+    is_api_available() >> get_stock_prices >> store_prices
 
 
 # ---------------------------------------------------------------------------------------------- #
