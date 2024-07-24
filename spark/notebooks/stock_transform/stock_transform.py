@@ -21,7 +21,7 @@ import sys
 if __name__ == '__main__':
 
     def app():
-        # Create a SparkSession
+        # Create a SparkSession  # some problem here
         spark = SparkSession.builder.appName("FormatStock") \
             .config("fs.s3a.access.key", os.getenv("AWS_ACCESS_KEY_ID", "minio")) \
             .config("fs.s3a.secret.key", os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")) \

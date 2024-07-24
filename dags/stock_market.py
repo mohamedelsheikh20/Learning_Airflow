@@ -25,7 +25,7 @@ from datetime import datetime
 
 
 # get the functions we need to use from other files
-from include.stock_market.tasks import _get_stock_prices, _store_prices
+from include.stock_market.tasks import _get_stock_prices, _store_prices, _get_formatted_prices_from_minio
 
 
 # ---------------------------------------------------------------------------------------------- #
@@ -87,7 +87,7 @@ def stock_market_dag():
     )
 
     # ****************************************************************************************** #
-    # Define a task to (convert JSON into CSV) using spark other container
+    # Define a task to (convert JSON into CSV) using spark other container   ( check transformation on spark)
     format_prices = DockerOperator(
         task_id='format_prices',  # Unique identifier for this task within the DAG
         max_active_tis_per_dag=1,  # Limit to one active instance of this task per DAG run
@@ -105,10 +105,16 @@ def stock_market_dag():
         mount_tmp_dir=False  # Do not mount a temporary directory in the container
     )
 
+    get_formatted_csv = PythonOperator(
+    task_id='get_formatted_csv',
+    python_callable=_get_formatted_prices_from_minio, 
+    op_kwargs={'location': '{{ ti.xcom_pull(task_ids="store_prices") }}'},
+    )
+
 
     # Call the sensor task to check API availability in (only done with decrator @)
     # >> what to be run after the next the previous one 
-    is_api_available() >> get_stock_prices >> store_prices >> format_prices
+    is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv
 
 
 # ---------------------------------------------------------------------------------------------- #

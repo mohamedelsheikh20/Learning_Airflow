@@ -1,5 +1,6 @@
 from include.helpers.minio import get_minio_client
 from airflow.hooks.base import BaseHook
+from airflow.exceptions import AirflowNotFoundException
 from io import BytesIO
 import requests
 import json
@@ -55,3 +56,17 @@ def _store_prices(prices):
 
     # Return the path of the stored object in the format "bucket_name/symbol" = "stock-market/AAPL"
     return f'{objw.bucket_name}/{symbol}'
+
+
+# Function to format prices from the DB (used in task)
+def _get_formatted_prices_from_minio(location):
+    client = get_minio_client()
+    objects = client.list_objects(f'stock-market', prefix='AAPL/formatted_prices/', recursive=True)
+    
+    #csv_file = [obj for obj in objects if obj.object_name.endswith('.csv')][0]
+
+    for obj in objects:
+        if obj.object_name.endswith('.csv'):
+            return f's3://{obj.bucket_name}/{obj.object_name}'
+        
+    raise AirflowNotFoundException('CSV file does not exists')
