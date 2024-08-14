@@ -18,25 +18,50 @@ from pyspark.sql.types import DateType
 import os
 import sys
 
+
+
 if __name__ == '__main__':
 
     def app():
-        # Create a SparkSession  # some problem here
+        # test
+        print(f'-------------os.get is  {os.getenv("AWS_ACCESS_KEY_ID", "minio")}, {os.getenv('SPARK_APPLICATION_ARGS')}\n')
+
+        # Create a SparkSession
+        # spark = SparkSession.builder.appName("FormatStock") \
+        #     .config("fs.s3a.access.key", os.getenv("AWS_ACCESS_KEY_ID", "minio")) \
+        #     .config("fs.s3a.secret.key", os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")) \
+        #     .config("fs.s3a.endpoint", os.getenv("ENDPOINT", "http://host.docker.internal:9002")) \
+        #     .config("fs.s3a.connection.ssl.enabled", "false") \
+        #     .config("fs.s3a.path.style.access", "true") \
+        #     .config("fs.s3a.attempts.maximum", "1") \
+        #     .config("fs.s3a.connection.establish.timeout", "5000") \
+        #     .config("fs.s3a.connection.timeout", "10000") \
+        #     .getOrCreate()
+        
+
+        # spark = SparkSession.builder \
+        #     .appName("FormatStock") \
+        #     .config("spark.hadoop.fs.s3a.endpoint", "http://host.docker.internal:9002") \
+        #     .config("spark.hadoop.fs.s3a.access.key", "minio") \
+        #     .config("spark.hadoop.fs.s3a.secret.key", "minio123") \
+        #     .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+        #     .config("spark.hadoop.fs.s3a.connection.maximum", "100") \
+        #     .getOrCreate()
+
+
         spark = SparkSession.builder.appName("FormatStock") \
-            .config("fs.s3a.access.key", os.getenv("AWS_ACCESS_KEY_ID", "minio")) \
-            .config("fs.s3a.secret.key", os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")) \
-            .config("fs.s3a.endpoint", os.getenv("ENDPOINT", "http://host.docker.internal:9000")) \
+            .config("fs.s3a.access.key", "minio") \
+            .config("fs.s3a.secret.key", "minio123") \
+            .config("fs.s3a.endpoint", "http://host.docker.internal:9002") \
             .config("fs.s3a.connection.ssl.enabled", "false") \
             .config("fs.s3a.path.style.access", "true") \
-            .config("fs.s3a.attempts.maximum", "1") \
-            .config("fs.s3a.connection.establish.timeout", "5000") \
-            .config("fs.s3a.connection.timeout", "10000") \
             .getOrCreate()
+
 
         # Read a JSON file from an MinIO bucket using the access key, secret key, 
         # and endpoint configured above
-        df = spark.read.option("header", "false") \
-            .json(f"s3a://{os.getenv('SPARK_APPLICATION_ARGS')}/prices.json")
+        # df = spark.read.option("header", "false").json(f"s3a://{os.getenv('SPARK_APPLICATION_ARGS')}/prices.json")
+        df = spark.read.option("header", "false").json(f"s3a://stock-market/AAPL/prices.json")
 
         # Explode the necessary arrays
         df_exploded = df.select("timestamp", explode("indicators.quote").alias("quote")) \
@@ -52,7 +77,8 @@ if __name__ == '__main__':
             .mode("overwrite") \
             .option("header", "true") \
             .option("delimiter", ",") \
-            .csv(f"s3a://{os.getenv('SPARK_APPLICATION_ARGS')}/formatted_prices")
+            .csv(f"s3a://stock-market/AAPL/formatted_prices")
+            # .csv(f"s3a://{os.getenv('SPARK_APPLICATION_ARGS')}/formatted_prices")
 
     app()
     os.system('kill %d' % os.getpid())

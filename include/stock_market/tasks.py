@@ -54,6 +54,8 @@ def _store_prices(prices):
         length=len(data)  # Length of the data to be stored
     )
 
+    print(f'--- Returned value from _store_prices is : {objw.bucket_name}/{symbol}')
+
     # Return the path of the stored object in the format "bucket_name/symbol" = "stock-market/AAPL"
     return f'{objw.bucket_name}/{symbol}'
 
