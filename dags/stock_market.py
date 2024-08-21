@@ -19,8 +19,15 @@ from airflow.operators.python import PythonOperator
 # import docker operator to manage seperated containers (airflow container and spark container)
 from airflow.providers.docker.operators.docker import DockerOperator
 
+
+# imports to deal with astro-sdk (to handle moving data easily)
+from astro import sql as aql
+from astro.files import File
+from astro.sql.table import Table, Metadata
+
 # Other imports
 import requests
+import sqlalchemy
 from datetime import datetime
 
 
@@ -105,16 +112,40 @@ def stock_market_dag():
         mount_tmp_dir=False  # Do not mount a temporary directory in the container
     )
 
-    # get_formatted_csv = PythonOperator(
-    # task_id='get_formatted_csv',
-    # python_callable=_get_formatted_prices_from_minio, 
-    # op_kwargs={'location': '{{ ti.xcom_pull(task_ids="store_prices") }}'},
-    # )
+
+    # ****************************************************************************************** #
+    # task to get the csv file path from minio 
+    get_formatted_csv = PythonOperator(
+    task_id='get_formatted_csv',
+    python_callable=_get_formatted_prices_from_minio, 
+    op_kwargs={'location': '{{ ti.xcom_pull(task_ids="store_prices") }}'},
+    )
+
+    # ****************************************************************************************** #
+    # load data to postgress using astro-sdk
+    load_to_dw = aql.load_file(
+        task_id='load_to_dw',
+        input_file=File(path='{{ ti.xcom_pull(task_ids="get_formatted_csv") }}', conn_id='minio'),
+        output_table=Table(
+            name='stock_prices',
+            conn_id='postgres',
+            metadata=Metadata(schema='public'),
+            # columns=[ # the order matters!
+            #     sqlalchemy.Column('timestamp', sqlalchemy.BigInteger, primary_key=True),
+            #     sqlalchemy.Column('close', sqlalchemy.Float),
+            #     sqlalchemy.Column('high', sqlalchemy.Float),
+            #     sqlalchemy.Column('low', sqlalchemy.Float),
+            #     sqlalchemy.Column('open', sqlalchemy.Float),
+            #     sqlalchemy.Column('volume', sqlalchemy.Integer),
+            #     sqlalchemy.Column('date', sqlalchemy.Date),
+            # ]
+        )
+    )
 
 
     # Call the sensor task to check API availability in (only done with decrator @)
     # >> what to be run after the next the previous one 
-    is_api_available() >> get_stock_prices >> store_prices >> format_prices #>> get_formatted_csv
+    is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> load_to_dw
 
 
 # ---------------------------------------------------------------------------------------------- #

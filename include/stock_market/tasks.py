@@ -63,7 +63,11 @@ def _store_prices(prices):
 # Function to format prices from the DB (used in task)
 def _get_formatted_prices_from_minio(location):
     client = get_minio_client()
-    objects = client.list_objects(f'stock-market', prefix='AAPL/formatted_prices/', recursive=True)
+
+    # print(f'location: {location}')
+    # print(f'Number of objects: {len(list(client.list_objects('stock-market')))}')
+
+    objects = client.list_objects(f'stock-market', prefix='AAPL/', recursive=True)    
     
     #csv_file = [obj for obj in objects if obj.object_name.endswith('.csv')][0]
 
@@ -71,4 +75,4 @@ def _get_formatted_prices_from_minio(location):
         if obj.object_name.endswith('.csv'):
             return f's3://{obj.bucket_name}/{obj.object_name}'
         
-    raise AirflowNotFoundException('CSV file does not exists')
+    raise AirflowNotFoundException(f'CSV file does not exists')
